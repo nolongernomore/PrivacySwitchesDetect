@@ -1,0 +1,2 @@
+# PrivacySwitchesDetect
+一项基于大模型的App隐私开关探测技术
