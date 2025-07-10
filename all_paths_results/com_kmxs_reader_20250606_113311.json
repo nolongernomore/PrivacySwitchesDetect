@@ -1,0 +1,40 @@
+{
+  "privacy_switches": [],
+  "personality": {
+    "personality_switches": [
+      {
+        "bounds": "[0.868,0.933][0.931,0.981]",
+        "text": "我的"
+      },
+      {
+        "bounds": "[0.919,0.062][0.955,0.098]",
+        "text": "设置"
+      },
+      {
+        "text": "隐私设置"
+      },
+      {
+        "text": "个性化书籍推荐",
+        "current_state": "on",
+        "recommended_state": "off",
+        "analysis": "关闭可防止平台基于阅读偏好进行数据收集和定向推荐，降低隐私泄露风险。"
+      }
+    ],
+    "personality_layouts": [
+      {
+        "text": "我的",
+        "bounds": "[0.868,0.933][0.931,0.981]"
+      },
+      {
+        "text": "设置",
+        "bounds": "[0.919,0.062][0.955,0.098]"
+      },
+      {
+        "text": "隐私设置"
+      },
+      {
+        "text": "广告设置"
+      }
+    ]
+  }
+}
