@@ -3,38 +3,71 @@ import time
 import copy
 import json
 import os
+import hashlib
 from typing import List, Dict
 from route import SimpleNavigator
 
 # from helpers import navigate_to_settings, model_inspect_page
 from qwen_privacy_inspector import run_inspection
 
+# 封装滑动逻辑
+class ScrollStrategy:
+    def __init__(self, start_ratio=0.9, end_ratio=0.25, duration=0.3, swipe_delay=0.5, max_swipes=10):
+        self.start_ratio = start_ratio
+        self.end_ratio = end_ratio
+        self.duration = duration
+        self.swipe_delay = swipe_delay
+        self.max_swipes = max_swipes
+
+    def swipe_until_no_change(self, device: u2.Device) -> bool:
+        """
+        滑动直到页面不再变化或达到最大滑动次数。
+        返回 True 表示滑动过，False 表示无需滑动或已滑到底。
+        """
+        w, h = device.window_size()
+        for _ in range(self.max_swipes):
+            before_hash = self._dump_hierarchy_hash(device)
+            device.swipe(
+                w // 2, int(h * self.start_ratio),
+                w // 2, int(h * self.end_ratio),
+                self.duration
+            )
+            time.sleep(self.swipe_delay)
+            after_hash = self._dump_hierarchy_hash(device)
+
+            if before_hash == after_hash:
+                return False  # 已滑到底
+        return True  # 达到最大滑动次数仍未停
+
+    def _dump_hierarchy_hash(self, device: u2.Device) -> str:
+        xml = device.dump_hierarchy()
+        return hashlib.md5(xml.encode("utf-8")).hexdigest()
+
 # 全局结果容器，分别存普通隐私开关、个性化开关、个性化布局
 privacy_switches: List[List[Dict]] = []
 personality_switches: List[List[Dict]] = []
 personality_layouts: List[List[Dict]] = []
 enable_personalization_layout_dfs = True
-def find_node_with_scroll(device: u2.Device, text: str, max_swipes: int = 10, swipe_delay: float = 0.5):
+def find_node_with_scroll(device: u2.Device, text: str, scroll_strategy: ScrollStrategy = None):
     """
-    在可滚动界面中查找 text 对应的节点，向下滑动尝试多次。
-    返回：如果找到，返回该节点；否则返回 None。
+    在可滚动界面中查找 text 对应的节点，支持滑动策略。
     """
-    for _ in range(max_swipes):
+    if scroll_strategy is None:
+        scroll_strategy = ScrollStrategy()
+
+    for _ in range(scroll_strategy.max_swipes + 1): # +1 是为了确保在不滑动的情况下也检查一次
         node = device(text=text)
         if not node.exists:
-            # 再尝试 description（content-desc）
             node = device(description=text)
         if node.exists:
             return node
 
-        # 向下滑动一屏（坐标根据设备分辨率可微调）
-        w, h = device.window_size()
-        # 从屏幕上方 30% 滑到下方 80%
-        start_x, start_y = w // 2, int(h * 0.9)#改为0.9
-        end_x,   end_y   = w // 2, int(h * 0.25)
-        device.swipe(start_x, start_y, end_x, end_y, duration=0.3)
-        time.sleep(swipe_delay)
+        # 如果没找到，尝试滑动并再次查找
+        scrolled = scroll_strategy.swipe_until_no_change(device)
+        if not scrolled:
+            break # 如果没有滑动或者滑到底了，就停止查找
     return None
+
 
 def safe_click_by_hierarchy(device: u2.Device, cx: int, cy: int,
                             max_retries: int = 2, wait_time: float = 1.0) -> bool:
@@ -64,6 +97,7 @@ def dfs_explore(device: u2.Device, curr_path: List[Dict]):
 
     is_current_page_popup = result.get("isPopup")
 
+
 #     w, h = device.window_size()
 #     device.swipe(w//2, int(h * 0.25), w//2, int(h * 0.9), duration=0.3)
 #     time.sleep(1)#wait时间不够长
@@ -73,10 +107,16 @@ def dfs_explore(device: u2.Device, curr_path: List[Dict]):
 #         # time.sleep(wait_time)
 #     # 1) switches 处理（普通隐私开关，只记录到 privacy_switches）
 # 确保滑动到顶部（更可靠的滑动）
-    w, h = device.window_size()
-    for _ in range(3):  # 滑动3次确保到顶部
-        device.swipe(w//2, int(h*0.3), w//2, int(h*0.8), 0.5)
-        time.sleep(0.8)
+#     w, h = device.window_size()
+#     for _ in range(3):  # 滑动3次确保到顶部
+#         device.swipe(w//2, int(h*0.3), w//2, int(h*0.8), 0.5)
+#         time.sleep(0.8)
+
+    # 确保滑动到顶部（使用 scroll_to_top 方法）
+    scroll_strategy = ScrollStrategy()
+    scroll_strategy.scroll_to_top(device)
+    time.sleep(1)
+
     for sw in result.get("switches", []):
         curr_path.append({
             "text": sw["text"],
